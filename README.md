@@ -257,3 +257,4 @@ This tool is for educational and accessibility purposes. Users are responsible f
 **Made with ❤️ by the community, for the community**
 
 </div>
+
