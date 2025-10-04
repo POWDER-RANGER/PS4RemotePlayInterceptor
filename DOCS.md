@@ -52,7 +52,6 @@ Install-Package PS4RemotePlayInterceptor
 ## Code Attribution & Architecture
 
 ### Upstream Code (Original komefai/PS4RemotePlayInterceptor)
-
 This repository is forked from [komefai/PS4RemotePlayInterceptor](https://github.com/komefai/PS4RemotePlayInterceptor). The core interception functionality comes from the upstream project:
 
 #### Core Components (Upstream)
@@ -61,30 +60,24 @@ This repository is forked from [komefai/PS4RemotePlayInterceptor](https://github
   - Analog stick values (LX, LY, RX, RY)
   - D-pad directions
   - Touch pad coordinates
-
 - **Hooks.cs**: Low-level hooking implementation
   - Uses EasyHook RemoteHooking API
   - Intercepts HID input reports from PS4 Remote Play client
   - Injects modified controller states back into the game stream
-
 - **InjectionInterface.cs**: EasyHook injection entry point
   - Implements `IEntryPoint` for EasyHook
   - Manages hook lifecycle and IPC communication
-
 - **Interceptor.cs**: High-level API for client applications
   - `Callback` delegate for receiving/modifying controller state
   - `Inject()` method to start interception
   - `EmulateController` mode for operation without physical controller
-
 - **Watchdog.cs**: Auto-injection monitoring
   - Automatically detects PS4 Remote Play process
   - Injects hooks when Remote Play starts
   - Event handlers for injection success/failure
-
 - **InterceptorException.cs**: Custom exception types
 
 ### Custom Extensions (POWDER-RANGER Fork)
-
 This fork extends the original with:
 
 #### Documentation Enhancements
@@ -107,15 +100,33 @@ This fork extends the original with:
 - AI-powered button prediction models
 - Computer vision integration for context-aware automation
 
-**Note**: Currently, most custom macro/AI features are planned (see roadmap in README). The core interception logic remains from the upstream project.
+> Note: Currently, most custom macro/AI features are planned (see roadmap in README). The core interception logic remains from the upstream project.
+
+---
+
+## Feature Comparison: Upstream vs. Fork (Macro/AI)
+
+| Area | Upstream (komefai) | POWDER-RANGER Fork (current) | POWDER-RANGER Fork (planned) |
+|---|---|---|---|
+| Core interception (DS4 on PS4 RP) | Stable | Stable (minor refactors) | Continued parity
+| Watchdog auto-injection | Basic | Improved event hooks | Multi-version RP client support
+| Controller emulation | Limited/beta | Beta | DualSense/virtual device abstraction
+| PS5 DualSense support | N/A | N/A | Full DualSense support (buttons, touch, haptics)
+| macOS support | N/A | N/A | Native Mac client support
+| Macro record/replay | N/A | N/A | Frame-accurate recorder and player
+| Visual macro editor | N/A | N/A | GUI editor and library management
+| Scripting API | N/A | N/A | Lua/Python bindings with sandboxing
+| AI/ML features | N/A | N/A | Button prediction, combo assist, adaptive automation
+| Overlay/HUD | N/A | N/A | Real-time input HUD and widgets
+| Security | Basic | Guidance/docs | Plugin sandbox, code signing, audits
+| CI/CD | Minimal | Docs WIP | Full pipelines, tests, artifacts
 
 ---
 
 ## Example Automation & Macro Scripts
 
 ### Example 1: Basic Auto-Press (Simple Macro)
-
-**Purpose**: Automatically hold down X button continuously
+Purpose: Automatically hold down X button continuously
 
 ```csharp
 using PS4RemotePlayInterceptor;
@@ -123,48 +134,31 @@ using System;
 
 namespace PS4Macros
 {
-    class AutoPressX
+  class AutoPressX
+  {
+    static void Main(string[] args)
     {
-        static void Main(string[] args)
-        {
-            Console.WriteLine("Starting Auto-Press X Macro...");
-            
-            // Setup callback
-            Interceptor.Callback = new InterceptionDelegate(OnReceiveData);
-            Interceptor.EmulateController = false;
-            
-            // Start watchdog
-            Interceptor.Watchdog.Start();
-            Interceptor.Watchdog.OnInjectionSuccess = () => 
-                Console.WriteLine("✅ Injected! X button will auto-press.");
-            Interceptor.Watchdog.OnInjectionFailure = () => 
-                Console.WriteLine("❌ Injection failed. Ensure PS4 Remote Play is running.");
-            
-            Console.WriteLine("Press Enter to stop...");
-            Console.ReadLine();
-            
-            Interceptor.Watchdog.Stop();
-        }
-        
-        private static void OnReceiveData(ref DualShockState state)
-        {
-            // Force X button pressed on every frame
-            state.Cross = true;
-        }
+      Console.WriteLine("Starting Auto-Press X Macro...");
+      Interceptor.Callback = new InterceptionDelegate(OnReceiveData);
+      Interceptor.EmulateController = false;
+      Interceptor.Watchdog.Start();
+      Interceptor.Watchdog.OnInjectionSuccess = () => Console.WriteLine("✅ Injected! X button will auto-press.");
+      Interceptor.Watchdog.OnInjectionFailure = () => Console.WriteLine("❌ Injection failed. Ensure PS4 Remote Play is running.");
+      Console.WriteLine("Press Enter to stop...");
+      Console.ReadLine();
+      Interceptor.Watchdog.Stop();
     }
+
+    private static void OnReceiveData(ref DualShockState state)
+    {
+      state.Cross = true; // Force X pressed
+    }
+  }
 }
 ```
 
-**Usage**:
-1. Compile and run while PS4 Remote Play is active
-2. X button will be held continuously
-3. Useful for: Skipping cutscenes, auto-advancing dialogue, AFK farming
-
----
-
 ### Example 2: Rapid-Fire Trigger (Input Timing Macro)
-
-**Purpose**: Convert R2 trigger hold into rapid-fire button taps
+Purpose: Convert R2 trigger hold into rapid-fire button taps
 
 ```csharp
 using PS4RemotePlayInterceptor;
@@ -173,74 +167,49 @@ using System.Diagnostics;
 
 namespace PS4Macros
 {
-    class RapidFire
+  class RapidFire
+  {
+    private static Stopwatch timer = new Stopwatch();
+    private static bool rapidFireState = false;
+    private static int rapidFireIntervalMs = 100; // 10 taps/sec
+
+    static void Main(string[] args)
     {
-        private static Stopwatch timer = new Stopwatch();
-        private static bool rapidFireState = false;
-        private static int rapidFireIntervalMs = 100; // 10 taps per second
-        
-        static void Main(string[] args)
-        {
-            Console.WriteLine("Starting Rapid-Fire R2 Macro...");
-            Console.WriteLine($"Fire rate: {1000 / rapidFireIntervalMs} shots/sec\n");
-            
-            timer.Start();
-            
-            Interceptor.Callback = new InterceptionDelegate(OnReceiveData);
-            Interceptor.EmulateController = false;
-            Interceptor.Watchdog.Start();
-            
-            Interceptor.Watchdog.OnInjectionSuccess = () => 
-                Console.WriteLine("✅ Rapid-Fire ready! Hold R2 to activate.");
-            
-            Console.WriteLine("Press Enter to stop...");
-            Console.ReadLine();
-            
-            Interceptor.Watchdog.Stop();
-        }
-        
-        private static void OnReceiveData(ref DualShockState state)
-        {
-            // Check if user is holding R2 trigger
-            if (state.R2 > 200) // Threshold for "pressed" (0-255 range)
-            {
-                // Toggle rapid fire state every intervalMs
-                if (timer.ElapsedMilliseconds >= rapidFireIntervalMs)
-                {
-                    rapidFireState = !rapidFireState;
-                    timer.Restart();
-                }
-                
-                // Apply rapid fire
-                state.R2 = (byte)(rapidFireState ? 255 : 0);
-            }
-            else
-            {
-                // Reset when R2 released
-                rapidFireState = false;
-                timer.Restart();
-            }
-        }
+      Console.WriteLine("Starting Rapid-Fire R2 Macro...");
+      Console.WriteLine($"Fire rate: {1000 / rapidFireIntervalMs} shots/sec\n");
+      timer.Start();
+      Interceptor.Callback = new InterceptionDelegate(OnReceiveData);
+      Interceptor.EmulateController = false;
+      Interceptor.Watchdog.Start();
+      Interceptor.Watchdog.OnInjectionSuccess = () => Console.WriteLine("✅ Rapid-Fire ready! Hold R2 to activate.");
+      Console.WriteLine("Press Enter to stop...");
+      Console.ReadLine();
+      Interceptor.Watchdog.Stop();
     }
+
+    private static void OnReceiveData(ref DualShockState state)
+    {
+      if (state.R2 > 200)
+      {
+        if (timer.ElapsedMilliseconds >= rapidFireIntervalMs)
+        {
+          rapidFireState = !rapidFireState;
+          timer.Restart();
+        }
+        state.R2 = (byte)(rapidFireState ? 255 : 0);
+      }
+      else
+      {
+        rapidFireState = false;
+        timer.Restart();
+      }
+    }
+  }
 }
 ```
 
-**Usage**:
-1. Run macro and start PS4 Remote Play
-2. Hold R2 in-game
-3. Trigger will pulse on/off at configured interval
-4. Useful for: Rapid-fire weapons, charge-cancel exploits, rhythm games
-
-**Configuration**:
-- Adjust `rapidFireIntervalMs` for different fire rates
-- Lower = faster (e.g., 50ms = 20 shots/sec)
-- Higher = slower (e.g., 200ms = 5 shots/sec)
-
----
-
 ### Example 3: Custom Input Mapper (Button Remapping)
-
-**Purpose**: Remap controller buttons (e.g., swap X and Circle for Japanese games)
+Purpose: Remap controller buttons (e.g., swap X and Circle for Japanese games)
 
 ```csharp
 using PS4RemotePlayInterceptor;
@@ -248,133 +217,203 @@ using System;
 
 namespace PS4Macros
 {
-    class ButtonRemapper
+  class ButtonRemapper
+  {
+    static void Main(string[] args)
     {
-        static void Main(string[] args)
-        {
-            Console.WriteLine("Starting Button Remapper...");
-            Console.WriteLine("Mapping: X <-> Circle (Japanese style)\n");
-            
-            Interceptor.Callback = new InterceptionDelegate(OnReceiveData);
-            Interceptor.EmulateController = false;
-            Interceptor.Watchdog.Start();
-            
-            Interceptor.Watchdog.OnInjectionSuccess = () => 
-                Console.WriteLine("✅ Remapper active! X and Circle are swapped.");
-            
-            Console.WriteLine("Press Enter to stop...");
-            Console.ReadLine();
-            
-            Interceptor.Watchdog.Stop();
-        }
-        
-        private static void OnReceiveData(ref DualShockState state)
-        {
-            // Save original button states
-            bool originalX = state.Cross;
-            bool originalCircle = state.Circle;
-            
-            // Swap the buttons
-            state.Cross = originalCircle;
-            state.Circle = originalX;
-            
-            // Additional mappings (examples):
-            // Swap Square and Triangle
-            // bool originalSquare = state.Square;
-            // bool originalTriangle = state.Triangle;
-            // state.Square = originalTriangle;
-            // state.Triangle = originalSquare;
-            
-            // Remap L3 to L1 (for games with awkward sprint controls)
-            // state.L1 = state.L3;
-        }
+      Console.WriteLine("Starting Button Remapper...");
+      Console.WriteLine("Mapping: X <-> Circle (Japanese style)\n");
+      Interceptor.Callback = new InterceptionDelegate(OnReceiveData);
+      Interceptor.EmulateController = false;
+      Interceptor.Watchdog.Start();
+      Interceptor.Watchdog.OnInjectionSuccess = () => Console.WriteLine("✅ Remapper active! X and Circle are swapped.");
+      Console.WriteLine("Press Enter to stop...");
+      Console.ReadLine();
+      Interceptor.Watchdog.Stop();
     }
+
+    private static void OnReceiveData(ref DualShockState state)
+    {
+      bool originalX = state.Cross;
+      bool originalCircle = state.Circle;
+      state.Cross = originalCircle;
+      state.Circle = originalX;
+    }
+  }
 }
 ```
 
-**Usage**:
-1. Modify button swap logic as needed
-2. Run macro before starting game
-3. Buttons will be remapped according to your configuration
-4. Useful for: Accessibility, Japanese game imports, personal preferences
+### Advanced Macro Tips
 
-**Common Remapping Scenarios**:
-- Japanese games: X ↔ Circle
-- Accessibility: Map hard-to-reach buttons to easier ones
-- FPS comfort: Swap R3/L3 with bumpers for crouch/sprint
-- Fighting games: Custom button layouts for combos
-
----
-
-## Advanced Macro Tips
-
-### Analog Stick Manipulation
+#### Analog Stick Manipulation
 ```csharp
 // Center position (neutral)
-state.LX = 128;
-state.LY = 128;
-
+state.LX = 128; state.LY = 128;
 // Full up
 state.LY = 0;
-
-// Full down  
+// Full down
 state.LY = 255;
-
 // Full left
 state.LX = 0;
-
 // Full right
 state.LX = 255;
-
-// Diagonal movement (up-right)
-state.LX = 255;
-state.LY = 0;
+// Diagonal up-right
+state.LX = 255; state.LY = 0;
 ```
 
-### Trigger Pressure Control
+#### Trigger Pressure Control
 ```csharp
 // Triggers are 0-255 pressure sensitive
-state.L2 = 128;  // Half press
-state.R2 = 255;  // Full press
-state.R2 = 0;    // Released
+state.L2 = 128; // half press
+state.R2 = 255; // full press
+state.R2 = 0;   // released
 ```
-
-### Safety Considerations
-1. **Always test macros in offline/single-player modes first**
-2. **Respect game Terms of Service** - Many online games prohibit automation
-3. **Use responsibly** - Macros can provide unfair advantages in competitive play
-4. **Monitor CPU usage** - Excessive callback processing can cause lag
-5. **Include kill-switch** - Always provide a way to disable the macro quickly
 
 ---
 
-## Future Enhancements
+## Planned Scripting API: Lua and Python Templates
 
-Planned features for macro system:
-- **Macro recording**: Record input sequences and replay them
-- **Scripting engine**: Lua/Python support for complex logic
-- **Conditional branching**: If/else logic based on game state
-- **Computer vision integration**: React to on-screen events
-- **Timing controls**: Frame-perfect input for speedruns
-- **Macro library**: Share community-created automation scripts
+> Status: Planned (Phase 2). The following templates illustrate the intended scripting surface. Final APIs may differ.
 
-See roadmap in main README for detailed timeline.
+### Lua Template
+```lua
+-- PS4RemotePlayInterceptor Lua Scripting (planned)
+-- Exposed objects: pad, timing, events
+
+function on_init()
+  log.info("Lua script initialized")
+  timing.set_interval_ms(5) -- callback tick interval
+end
+
+function on_frame(state)
+  -- Auto-jump every 1s
+  if timing.every_ms(1000) then
+    state.Cross = true
+  else
+    state.Cross = false
+  end
+
+  -- Hold up on left stick
+  state.LY = 0
+
+  return state
+end
+
+function on_shutdown()
+  log.info("Lua script stopped")
+end
+```
+
+### Python Template
+```python
+# PS4RemotePlayInterceptor Python Scripting (planned)
+# Exposed modules: pad, timing, log
+
+from interceptor import state, timing, log
+
+def on_init():
+    log.info("Python script initialized")
+    timing.set_interval_ms(5)
+
+_last_toggle = 0
+_toggle = False
+
+def on_frame(s: state.DualShockState) -> state.DualShockState:
+    global _last_toggle, _toggle
+    now = timing.millis()
+    if now - _last_toggle >= 100:
+        _toggle = not _toggle
+        _last_toggle = now
+    # Rapid fire on R2 when held
+    if s.R2 > 200:
+        s.R2 = 255 if _toggle else 0
+    return s
+
+def on_shutdown():
+    log.info("Python script stopped")
+```
+
+#### Scripting API Concepts (Planned)
+- Lifecycle: `on_init()`, `on_frame(state)`, `on_shutdown()`
+- Utilities: timers, schedulers, easing functions, keybinds, hot-reload
+- Sandboxing: restricted modules, CPU/time budget, memory caps, no filesystem/network by default
+- Packaging: `.ps4macro` bundles with metadata and permissions manifest
+
+---
+
+## Troubleshooting & FAQ
+
+### Common Errors
+- Error: `STATUS_INTERNAL_ERROR: Unknown error in injected C++ completion routine. (Code: 15)`
+  - Solution: Restart PS4 Remote Play application and try again.
+- Error: `Injection IPC failed`
+  - Solution: Use compatibility mode:
+    ```csharp
+    Interceptor.InjectionMode = InjectionMode.Compatibility;
+    Interceptor.Inject();
+    ```
+- Controller not responding after injection
+  - Ensure Remote Play is focused and connected to console
+  - Unplug/replug DualShock 4
+  - Enable `EmulateController` if using without physical controller
+
+### FAQ
+- Does this work with PS5 Remote Play?
+  - Planned. DualSense integration is tracked in the roadmap.
+- Is macOS supported?
+  - Planned. macOS client compatibility is a Phase 1 goal.
+- Is this safe for online games?
+  - We do not condone cheating. Use only in single-player/offline modes and respect ToS.
+- Why does injection randomly fail after updates?
+  - The Remote Play client changes internals across versions. Try Compatibility mode and watch for version-specific fixes.
+- Can I run scripts without a controller connected?
+  - Yes, via `EmulateController` mode (beta). Some games may still expect a physical device.
+
+---
+
+## Cross-Platform Builds & Best Practices
+
+### Windows
+- Use VS 2022, .NET Framework 4.0 target, AnyCPU
+- Include EasyHook native binaries (`x86`/`x64`) alongside application
+- Prefer Release builds for lower latency; enable Optimize Code
+
+### macOS (Planned)
+- Target .NET (Mono/.NET 7+) bridge for scripting layer
+- Implement native injection hooks for Mac Remote Play client
+- Provide notarized, signed helper binaries; respect SIP constraints
+
+### CI/CD (Planned)
+- GitHub Actions: matrix for Windows/macOS
+- Artifacts: zipped binaries with correct native deps per OS/arch
+- Code signing for plugins and release artifacts
+
+### User Safety & Ethical Use
+- Test in offline/single-player first; avoid competitive/online titles
+- Provide visible “recording/automation active” indicators
+- Add an emergency kill-switch (e.g., Esc key or hotkey)
+- Log clearly what macros/scripts do; allow opt-in prompts for risky actions
+- Follow community guidelines; do not bypass anti-cheat mechanisms
+
+---
+
+## Advanced Macro Safety Checklist
+- CPU budget per frame under 2 ms; avoid heavy I/O in callbacks
+- Debounce inputs; avoid oscillation that triggers anti-cheat heuristics
+- Use fixed timestep where possible for deterministic playback
+- Version-lock macros to Remote Play client builds if timing-sensitive
 
 ---
 
 ## Contributing
-
-Want to add your own macro examples or improve this documentation?
-1. Fork this repository
-2. Add your macro scripts to a new folder (e.g., `examples/macros/`)
-3. Document usage clearly
-4. Submit a pull request
-
-We welcome contributions from the community!
+- Fork this repository
+- Add macro/scripts to `examples/` with README usage
+- Follow code style and add tests for new features
+- Open a PR and describe your testing setup
 
 ---
 
-**Last Updated**: October 4, 2025  
-**Maintainer**: POWDER-RANGER  
-**Original Author**: komefai  
-**License**: MIT
+Last Updated: October 4, 2025
+Maintainer: POWDER-RANGER
+Original Author: komefai
+License: MIT
